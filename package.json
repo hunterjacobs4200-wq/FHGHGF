@@ -1,0 +1,15 @@
+{
+  "name": "hunters-mods-pipeline",
+  "version": "1.0.0",
+  "description": "FiveM AI 3D asset generator pipeline",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  }
+}
