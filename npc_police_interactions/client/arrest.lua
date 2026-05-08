@@ -235,7 +235,6 @@ function ToggleEscort(npcData)
 
     isEscorting = true
     escortedPed = ped
-    escortedData = npcData
 
     NPCPolice.AI.TransitionState(ped, 'escorted')
 
@@ -298,6 +297,7 @@ function PlaceInVehicle(npcData)
     if not DoesEntityExist(ped) then return end
 
     -- Find nearest police vehicle
+    local playerPos = GetEntityCoords(PlayerPedId())
     local closestVehicle = nil
     local closestDist = 10.0
 
