@@ -75,7 +75,9 @@ end)
 -- NPC VEHICLE DETECTION
 -- ============================================================================
 
---- Find the closest managed NPC vehicle in front of the player's vehicle
+--- Find the closest NPC vehicle in front of the player's vehicle.
+--- First checks managed (resource-spawned) NPCs, then falls back to scanning
+--- ALL ambient NPC vehicles so the system works with any traffic on the road.
 ---@param playerPed number
 ---@param playerVehicle number
 ---@return table|nil npcData
@@ -86,6 +88,7 @@ function FindNPCVehicleAhead(_, playerVehicle)
     local bestTarget = nil
     local bestDist = Config.Pullover.DetectionRange
 
+    -- 1) Check managed (resource-spawned) NPCs first
     for _, data in pairs(activeNPCs) do
         if data.state == 'driving' and not data.hasBeenStopped then
             if DoesEntityExist(data.vehicle) then
@@ -93,7 +96,6 @@ function FindNPCVehicleAhead(_, playerVehicle)
                 local dist = #(playerPos - npcPos)
 
                 if dist < bestDist then
-                    -- Check if the NPC is roughly in front of us
                     local direction = norm(npcPos - playerPos)
                     local dot = playerForward.x * direction.x
                         + playerForward.y * direction.y
@@ -106,6 +108,51 @@ function FindNPCVehicleAhead(_, playerVehicle)
             end
         end
     end
+
+    if bestTarget then return bestTarget end
+
+    -- 2) Scan ALL vehicles on the road (ambient traffic)
+    local handle, vehicle = FindFirstVehicle()
+    local success = true
+
+    while success do
+        if DoesEntityExist(vehicle) and vehicle ~= playerVehicle then
+            local driver = GetPedInVehicleSeat(vehicle, -1)
+
+            -- Must have a driver, must be an NPC (not a player), must not be
+            -- an emergency vehicle itself
+            if driver ~= 0 and DoesEntityExist(driver)
+                and not IsPedAPlayer(driver)
+                and GetVehicleClass(vehicle) ~= 18 then
+
+                local npcPos = GetEntityCoords(vehicle)
+                local dist = #(playerPos - npcPos)
+
+                if dist < bestDist then
+                    local direction = norm(npcPos - playerPos)
+                    local dot = playerForward.x * direction.x
+                        + playerForward.y * direction.y
+
+                    if dot > 0.5 then
+                        -- Check if this ped is already registered
+                        local existingData = GetNPCDataByPed(driver)
+                        if existingData and not existingData.hasBeenStopped then
+                            bestDist = dist
+                            bestTarget = existingData
+                        elseif not existingData then
+                            -- Store as a lightweight candidate; full
+                            -- registration is deferred to InitiateTrafficStop
+                            -- so we don't freeze the NPC's driving AI early.
+                            bestDist = dist
+                            bestTarget = { _ambient = true, ped = driver, vehicle = vehicle }
+                        end
+                    end
+                end
+            end
+        end
+        success, vehicle = FindNextVehicle(handle)
+    end
+    EndFindVehicle(handle)
 
     return bestTarget
 end
@@ -127,6 +174,12 @@ end
 ---@param npcData table
 function InitiateTrafficStop(npcData)
     if isInitiatingStop then return end
+
+    -- If this is a lightweight ambient candidate, register it now
+    if npcData._ambient then
+        npcData = RegisterAmbientNPC(npcData.ped, npcData.vehicle)
+    end
+
     isInitiatingStop = true
     currentTarget = npcData.ped
     sirenTimer = 0
@@ -254,7 +307,6 @@ function CancelTrafficStop()
     end
 
     currentTarget = nil
-    currentTargetId = nil
     isInitiatingStop = false
     approachPhase = false
     sirenTimer = 0
