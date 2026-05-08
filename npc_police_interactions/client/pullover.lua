@@ -140,10 +140,11 @@ function FindNPCVehicleAhead(_, playerVehicle)
                             bestDist = dist
                             bestTarget = existingData
                         elseif not existingData then
-                            -- Register ambient NPC on the fly
-                            local npcData = RegisterAmbientNPC(driver, vehicle)
+                            -- Store as a lightweight candidate; full
+                            -- registration is deferred to InitiateTrafficStop
+                            -- so we don't freeze the NPC's driving AI early.
                             bestDist = dist
-                            bestTarget = npcData
+                            bestTarget = { _ambient = true, ped = driver, vehicle = vehicle }
                         end
                     end
                 end
@@ -173,6 +174,12 @@ end
 ---@param npcData table
 function InitiateTrafficStop(npcData)
     if isInitiatingStop then return end
+
+    -- If this is a lightweight ambient candidate, register it now
+    if npcData._ambient then
+        npcData = RegisterAmbientNPC(npcData.ped, npcData.vehicle)
+    end
+
     isInitiatingStop = true
     currentTarget = npcData.ped
     sirenTimer = 0
