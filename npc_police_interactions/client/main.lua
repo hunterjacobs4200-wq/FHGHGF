@@ -77,6 +77,28 @@ exports('GetNPCData', function(netId)
     return activeNPCs[netId]
 end)
 
+--- Register an ambient/existing NPC vehicle into the managed system
+--- so the full pullover + interaction pipeline works with any traffic NPC.
+---@param ped number
+---@param vehicle number
+---@return table npcData
+function RegisterAmbientNPC(ped, vehicle)
+    local plate = GetVehicleNumberPlateText(vehicle) or NPCPolice.GeneratePlate()
+
+    -- Prevent ambient entities from despawning during the interaction
+    SetEntityAsMissionEntity(ped, true, true)
+    SetEntityAsMissionEntity(vehicle, true, true)
+    SetBlockingOfNonTemporaryEvents(ped, true)
+
+    local npcData = CreateNPCData(ped, vehicle, plate)
+    local npcId = ped
+    activeNPCs[npcId] = npcData
+    NPCPolice.Debug(('Registered ambient NPC: %s [%s]'):format(
+        npcData.identity.fullName, plate
+    ))
+    return npcData
+end
+
 -- ============================================================================
 -- NPC DATA STRUCTURE FACTORY
 -- ============================================================================
@@ -469,6 +491,8 @@ end)
 -- ============================================================================
 -- EXPORTED FUNCTIONS FOR OTHER CLIENT SCRIPTS
 -- ============================================================================
+
+exports('RegisterAmbientNPC', RegisterAmbientNPC)
 
 --- Get NPC data by ped handle (used by pullover, menu, etc.)
 ---@param ped number
